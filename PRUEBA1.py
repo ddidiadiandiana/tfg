@@ -7,6 +7,7 @@ import shutil  # necesario para copiar archivos antes de usar docx2pdf
 import tempfile
 
 import streamlit as st
+import subprocess
 from docx import Document
 from docx2pdf import convert
 from io import BytesIO
@@ -16,7 +17,7 @@ from pdf2image import convert_from_path
 import pdfplumber
 from streamlit_pdf_viewer import pdf_viewer
 
-from form_utils import build_mapping, extract_fields, fill_form, get_prompt_template, infer_data
+from form_utils import extract_fields, fill_form, get_prompt_template, infer_data
 
 st.set_page_config(page_title="AI Form Filler", layout="centered")
 st.title("AI Form Filler")
@@ -173,7 +174,7 @@ if st.session_state.show_inference:
 
             else:
                 with st.spinner("Infiriendo valores...", show_time=True):
-                    inferred_data = infer_data(fields, user_input, chain)
+                    fields, inferred_data = infer_data(fields, user_input, chain, st.session_state.extension)
 
                 st.session_state["fields"] = fields
                 st.session_state["inferred_data"] = inferred_data
@@ -219,8 +220,17 @@ if st.session_state.show_download:
         with tempfile.NamedTemporaryFile(delete=False, suffix=st.session_state.extension) as tmp_output_file:
             output_path = tmp_output_file.name
 
-        mapping = build_mapping(st.session_state.fields, st.session_state.edited_data)
-        st.session_state["mapping"] = mapping
+        # print("Claves en edited_data:")
+        # for k in st.session_state.edited_data.keys():
+        #     print(repr(k))
+
+        # print("\nClaves en fields:")
+        # for f in st.session_state.fields:
+        #     # print(repr(f['name']))
+        #     print(repr(f['inferred_name']))
+
+        print("\nClaves en st.session_state.fields:\n", st.session_state.fields)
+
 
         with st.spinner("Completando documento...", show_time=True):
             fill_form(
@@ -228,8 +238,7 @@ if st.session_state.show_download:
                 output_path,
                 st.session_state.edited_data,
                 st.session_state.fields,
-                st.session_state.extension,
-                st.session_state.mapping
+                st.session_state.extension
             )
 
         pdf_bytes = None
@@ -239,12 +248,21 @@ if st.session_state.show_download:
                 try:
                     docx_copy_path = os.path.join(tmp_dir, os.path.basename(output_path))
                     shutil.copy(output_path, docx_copy_path)
-                    convert(docx_copy_path, tmp_dir)
+
+                    subprocess.run([
+                        "libreoffice",
+                        "--headless",
+                        "--convert-to", "pdf",
+                        "--outdir", tmp_dir,
+                        docx_copy_path
+                    ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
                     pdf_path = os.path.join(tmp_dir, os.path.splitext(os.path.basename(output_path))[0] + ".pdf")
                     with open(pdf_path, "rb") as f:
                         pdf_bytes = f.read()
+
                 except Exception as e:
-                    st.error(f"Error al convertir DOCX a PDF con docx2pdf: {e}")
+                    st.error(f"Error al convertir DOCX a PDF con LibreOffice: {e}")
         else:
             with open(output_path, "rb") as f:
                 pdf_bytes = f.read()

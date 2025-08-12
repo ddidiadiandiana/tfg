@@ -9,27 +9,6 @@ from pypdf.generic import NameObject, TextStringObject, BooleanObject, Dictionar
 
 from langchain.chains import LLMChain
 
-def build_mapping(extracted_fields: List[Dict[str, str]], inferred_data: Dict[str, str]) -> Dict[str, Optional[str]]:
-    """
-    Map extracted field names to inferred field names based on stripped equality.
-
-    :param extracted_fields: List of dicts with 'name' keys for extracted fields.
-    :param inferred_data: Dict of inferred field names to values.
-    :return: Dictionary mapping extracted field names to inferred field names, or None if no match.
-    """
-    mapping: Dict[str, Optional[str]] = {}
-
-    for field in extracted_fields:
-        extracted_name = field.get("name", "").strip()
-        match = None
-        for inferred_name in inferred_data.keys():
-            if extracted_name == inferred_name.strip():
-                match = inferred_name
-                break
-        mapping[field.get("name", "")] = match
-
-    return mapping
-
 def get_prompt_template(extension: str) -> Tuple[str, str]:
     """
     Returns system and user prompt templates based on the file extension.
@@ -106,6 +85,7 @@ def extract_fields(file: str, extension: str) -> List[Dict[str, Any]]:
             if text and (":" in text or "-" in text or len(text.split()) <= 6):
                 fields.append({
                     "name": text,
+                    "inferred_name": "",
                     "location": "paragraph",
                     "paragraph": paragraph_i,
                     "append_style": "inline"
@@ -125,6 +105,7 @@ def extract_fields(file: str, extension: str) -> List[Dict[str, Any]]:
     
                         fields.append({
                             "name": field_name,
+                            "inferred_name": "",
                             "location": "table",
                             "table": table_i,
                             "row": row_i,
@@ -186,7 +167,7 @@ def extract_json_dict(text: str) -> str:
 
     return ""
 
-def infer_data(fields: List[Dict[str, Any]], user_input: str, chain: LLMChain) -> Dict[str, str]:
+def infer_data(fields: List[Dict[str, Any]], user_input: str, chain: LLMChain, extension: str) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     """
     Infers field values from user input using a language model chain.
     
@@ -194,29 +175,41 @@ def infer_data(fields: List[Dict[str, Any]], user_input: str, chain: LLMChain) -
     :param user_input: Text input providing relevant personal information from the user.
     :param chain: LangChain LLMChain used to invoke the language model.
     :param extension: File extension indicating document type.
-    :return: Dictionary mapping field names to inferred values.
+    :return: fields, inferred_dict
     """
-    fields = [field["name"] for field in fields]
+    field_names = [field["name"] for field in fields]
     
     prompt_vars = {
         "today": date.today().strftime("%d/%m/%Y"),
-        "fields": json.dumps(fields, indent=2, ensure_ascii=False),
+        "fields": json.dumps(field_names, indent=2, ensure_ascii=False),
         "user_input": user_input
     }
 
     response = chain.invoke(prompt_vars).content.strip()
 
     try:
-        return json.loads(response)
+        inferred_dict = json.loads(response)
     except json.JSONDecodeError:
         extracted_json = extract_json_dict(response)
         try:
-            return json.loads(extracted_json)
+            inferred_dict = json.loads(extracted_json)
         except json.JSONDecodeError:
             st.error("No se ha podido interpretar la respuesta del modelo como un JSON válido. El proceso se ha detenido.", icon=":material/error:")
             st.stop()
 
-def fill_form(inputf: str, outputf: str, data: Dict[str, str], fields: List[Dict[str, Any]], extension: str, mapping: Dict[str, str] = None) -> None:
+    if extension == ".docx":
+        for f in fields:
+            extracted_name = f["name"].strip().lower()
+            for inferred_name, value in inferred_dict.items():
+                inferred_name = inferred_name.strip().lower()
+                if inferred_name == extracted_name or inferred_name in extracted_name:
+                    f["inferred_name"] = inferred_name
+                    f["value"] = value
+                    break
+
+    return fields, inferred_dict
+
+def fill_form(inputf: str, outputf: str, data: Dict[str, str], fields: List[Dict[str, Any]], extension: str) -> None:
     """
     Fills document form fields with provided data.
     
@@ -231,21 +224,17 @@ def fill_form(inputf: str, outputf: str, data: Dict[str, str], fields: List[Dict
         doc = Document(inputf)
 
         for field in fields:
-            extracted_key = field["name"]
-            inferred_key = mapping.get(extracted_key) if mapping else extracted_key
+            extracted_name = field["name"]
+            value = str(field.get("value", "")).strip()
 
-            if not inferred_key:
-                continue
-
-            value = data.get(inferred_key, "")
             if not value:
                 continue
 
             # Fill paragraphs
             if field["location"] == "paragraph":
                 paragraph = doc.paragraphs[field["paragraph"]]
-                if extracted_key in paragraph.text:
-                    paragraph.text = paragraph.text.replace(extracted_key, f"{extracted_key} {value}")
+                if extracted_name in paragraph.text:
+                    paragraph.text = paragraph.text.replace(extracted_name, f"{extracted_name} {value}")
     
             # Fill tables
             elif field["location"] == "table":
@@ -257,7 +246,7 @@ def fill_form(inputf: str, outputf: str, data: Dict[str, str], fields: List[Dict
                 elif field["append_style"] == "cell_below":
                     table.cell(row + 1, column).text = value
                 else:
-                    table.cell(row, column).text = f"{extracted_key} {value}"
+                    table.cell(row, column).text = f"{extracted_name} {value}"
     
         doc.save(outputf)
         
@@ -281,20 +270,20 @@ def fill_form(inputf: str, outputf: str, data: Dict[str, str], fields: List[Dict
                     if value:
                         obj.update({NameObject("/V"): TextStringObject(str(value))})
     
-        if "/AcroForm" in reader.trailer["/Root"]:
-            acro_form = reader.trailer["/Root"]["/AcroForm"]
-            acro_form.update({NameObject("/NeedAppearances"): BooleanObject(True)})
-        else:
-            reader.trailer["/Root"][NameObject("/AcroForm")] = DictionaryObject({
-                NameObject("/NeedAppearances"): BooleanObject(True)
-            })
+        # if "/AcroForm" in reader.trailer["/Root"]:
+        #     acro_form = reader.trailer["/Root"]["/AcroForm"]
+        #     acro_form.update({NameObject("/NeedAppearances"): BooleanObject(True)})
+        # else:
+        #     reader.trailer["/Root"][NameObject("/AcroForm")] = DictionaryObject({
+        #         NameObject("/NeedAppearances"): BooleanObject(True)
+        #     })
         
         writer = PdfWriter()
         for page in reader.pages:
             writer.add_page(page)
 
-        writer._root_object.update({
-            NameObject("/AcroForm"): reader.trailer["/Root"]["/AcroForm"]
-        })
+        # writer._root_object.update({
+        #     NameObject("/AcroForm"): reader.trailer["/Root"]["/AcroForm"]
+        # })
     
         writer.write(outputf)
