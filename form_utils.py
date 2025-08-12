@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Tuple, Optional
 import streamlit as st
 from docx import Document
 from pypdf import PdfReader, PdfWriter
-from pypdf.generic import NameObject, TextStringObject
+from pypdf.generic import NameObject, TextStringObject, BooleanObject, DictionaryObject
 
 from langchain.chains import LLMChain
 
@@ -281,8 +281,20 @@ def fill_form(inputf: str, outputf: str, data: Dict[str, str], fields: List[Dict
                     if value:
                         obj.update({NameObject("/V"): TextStringObject(str(value))})
     
+        if "/AcroForm" in reader.trailer["/Root"]:
+            acro_form = reader.trailer["/Root"]["/AcroForm"]
+            acro_form.update({NameObject("/NeedAppearances"): BooleanObject(True)})
+        else:
+            reader.trailer["/Root"][NameObject("/AcroForm")] = DictionaryObject({
+                NameObject("/NeedAppearances"): BooleanObject(True)
+            })
+        
         writer = PdfWriter()
         for page in reader.pages:
             writer.add_page(page)
+
+        writer._root_object.update({
+            NameObject("/AcroForm"): reader.trailer["/Root"]["/AcroForm"]
+        })
     
         writer.write(outputf)

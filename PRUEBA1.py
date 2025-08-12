@@ -222,19 +222,19 @@ if st.session_state.show_download:
         mapping = build_mapping(st.session_state.fields, st.session_state.edited_data)
         st.session_state["mapping"] = mapping
 
-        fill_form(
-            st.session_state.input_path,
-            output_path,
-            st.session_state.edited_data,
-            st.session_state.fields,
-            st.session_state.extension,
-            st.session_state.mapping
-        )
+        with st.spinner("Completando documento...", show_time=True):
+            fill_form(
+                st.session_state.input_path,
+                output_path,
+                st.session_state.edited_data,
+                st.session_state.fields,
+                st.session_state.extension,
+                st.session_state.mapping
+            )
 
         pdf_bytes = None
 
         if st.session_state.extension == ".docx":
-            # Convert .docx to .pdf using docx2pdf
             with tempfile.TemporaryDirectory() as tmp_dir:
                 try:
                     docx_copy_path = os.path.join(tmp_dir, os.path.basename(output_path))
@@ -274,5 +274,6 @@ if st.session_state.show_download:
                     data=pdf_bytes,
                     file_name=st.session_state.final_filename.replace(".docx", ".pdf"),
                     mime="application/pdf",
+                    help="Pulsa \"Descargar\" para descargar el documento completado.",
                     type="primary"
                 )
