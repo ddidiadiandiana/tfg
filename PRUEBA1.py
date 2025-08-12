@@ -3,17 +3,14 @@ import os
 import time
 
 import pandas as pd
-import shutil  # necesario para copiar archivos antes de usar docx2pdf
+import shutil
 import tempfile
 
 import streamlit as st
 import subprocess
 from docx import Document
-from docx2pdf import convert
-from io import BytesIO
 from langchain.prompts.chat import ChatPromptTemplate, HumanMessagePromptTemplate, SystemMessagePromptTemplate
 from langchain_openai import ChatOpenAI
-from pdf2image import convert_from_path
 import pdfplumber
 from streamlit_pdf_viewer import pdf_viewer
 
@@ -219,18 +216,6 @@ if st.session_state.show_download:
     with st.expander("Descarga", expanded=True, icon=":material/file_save:"):
         with tempfile.NamedTemporaryFile(delete=False, suffix=st.session_state.extension) as tmp_output_file:
             output_path = tmp_output_file.name
-
-        # print("Claves en edited_data:")
-        # for k in st.session_state.edited_data.keys():
-        #     print(repr(k))
-
-        # print("\nClaves en fields:")
-        # for f in st.session_state.fields:
-        #     # print(repr(f['name']))
-        #     print(repr(f['inferred_name']))
-
-        print("\nClaves en st.session_state.fields:\n", st.session_state.fields)
-
 
         with st.spinner("Completando documento...", show_time=True):
             fill_form(
