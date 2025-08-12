@@ -1,4 +1,3 @@
-import base64
 import os
 import time
 
@@ -6,15 +5,15 @@ import pandas as pd
 import shutil
 import tempfile
 
+import pdfplumber
 import streamlit as st
 import subprocess
 from docx import Document
 from langchain.prompts.chat import ChatPromptTemplate, HumanMessagePromptTemplate, SystemMessagePromptTemplate
 from langchain_openai import ChatOpenAI
-import pdfplumber
 from streamlit_pdf_viewer import pdf_viewer
 
-from form_utils import extract_fields, fill_form, get_prompt_template, infer_data
+from form_utils import build_mapping, extract_fields, fill_form, get_prompt_template, infer_data
 
 st.set_page_config(page_title="AI Form Filler", layout="centered")
 st.title("AI Form Filler")
@@ -171,7 +170,7 @@ if st.session_state.show_inference:
 
             else:
                 with st.spinner("Infiriendo valores...", show_time=True):
-                    fields, inferred_data = infer_data(fields, user_input, chain, st.session_state.extension)
+                    inferred_data = infer_data(fields, user_input, chain)
 
                 st.session_state["fields"] = fields
                 st.session_state["inferred_data"] = inferred_data
@@ -217,13 +216,17 @@ if st.session_state.show_download:
         with tempfile.NamedTemporaryFile(delete=False, suffix=st.session_state.extension) as tmp_output_file:
             output_path = tmp_output_file.name
 
+        mapping = build_mapping(st.session_state.fields, st.session_state.edited_data)
+        st.session_state["mapping"] = mapping
+
         with st.spinner("Completando documento...", show_time=True):
             fill_form(
                 st.session_state.input_path,
                 output_path,
                 st.session_state.edited_data,
                 st.session_state.fields,
-                st.session_state.extension
+                st.session_state.extension,
+                st.session_state.mapping
             )
 
         pdf_bytes = None
