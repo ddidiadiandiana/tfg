@@ -13,7 +13,7 @@ from langchain.prompts.chat import ChatPromptTemplate, HumanMessagePromptTemplat
 from langchain_openai import ChatOpenAI
 from streamlit_pdf_viewer import pdf_viewer
 
-from form_utils import build_mapping, extract_fields, fill_form, get_prompt_template, infer_data
+from form_utils import extract_fields, fill_form, get_prompt_template, infer_data
 
 st.set_page_config(page_title="AI Form Filler", layout="centered")
 st.title("AI Form Filler")
@@ -216,17 +216,13 @@ if st.session_state.show_download:
         with tempfile.NamedTemporaryFile(delete=False, suffix=st.session_state.extension) as tmp_output_file:
             output_path = tmp_output_file.name
 
-        mapping = build_mapping(st.session_state.fields, st.session_state.edited_data)
-        st.session_state["mapping"] = mapping
-
         with st.spinner("Completando documento...", show_time=True):
             fill_form(
                 st.session_state.input_path,
                 output_path,
                 st.session_state.edited_data,
                 st.session_state.fields,
-                st.session_state.extension,
-                st.session_state.mapping
+                st.session_state.extension
             )
 
         pdf_bytes = None
