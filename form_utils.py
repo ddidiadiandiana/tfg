@@ -268,7 +268,7 @@ def fill_form(inputf: str, outputf: str, data: Dict[str, str], fields: List[Dict
                 if extracted_key in paragraph.text:
                     if "___" in paragraph.text:  # tiene guiones bajos después
                         pattern = re.escape(extracted_key) + r"[ _]*_{3,}"
-                        paragraph.text = re.sub(pattern, f"{extracted_key} {value}  ", paragraph.text)
+                        paragraph.text = re.sub(pattern, f"{extracted_key} {value} ", paragraph.text)
                     else:
                         paragraph.text = paragraph.text.replace(extracted_key, f"{extracted_key} {value}")
     
