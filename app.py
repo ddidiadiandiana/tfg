@@ -117,8 +117,9 @@ if st.session_state.show_inference:
         if "inference_done" not in st.session_state:
             st.session_state["inference_done"] = False
 
-        if "llm" not in st.session_state:
-                st.session_state["llm"] = ChatOpenAI(api_key=st.session_state["OPENAI_API_KEY"], model=st.session_state.openai_model, temperature=0, seed=4567)
+        if "llm" not in st.session_state or st.session_state.get("llm_api_key") != st.session_state.OPENAI_API_KEY:
+            st.session_state["llm"] = ChatOpenAI(api_key=st.session_state["OPENAI_API_KEY"], model=st.session_state.openai_model, temperature=0, seed=4567)
+            st.session_state["llm_api_key"] = st.session_state.OPENAI_API_KEY
 
         if not st.session_state.inference_done:
             extension = os.path.splitext(st.session_state.user_file.name)[-1].lower()
