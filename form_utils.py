@@ -1,7 +1,7 @@
 import json
 import re
 from datetime import date
-from typing import Any, Dict, List, Tuple, Optional
+from typing import Any, Dict, List, Tuple
 
 import streamlit as st
 from docx import Document
@@ -9,27 +9,6 @@ from pypdf import PdfReader, PdfWriter
 from pypdf.generic import NameObject, TextStringObject, BooleanObject, DictionaryObject
 
 from langchain.chains import LLMChain
-
-# def build_mapping(extracted_fields: List[Dict[str, str]], inferred_data: Dict[str, str]) -> Dict[str, Optional[str]]:
-#     """
-#     Map extracted field names to inferred field names based on stripped equality.
-
-#     :param extracted_fields: List of dicts with 'name' keys for extracted fields.
-#     :param inferred_data: Dict of inferred field names to values.
-#     :return: Dictionary mapping extracted field names to inferred field names, or None if no match.
-#     """
-#     mapping: Dict[str, Optional[str]] = {}
-
-#     for field in extracted_fields:
-#         extracted_name = field.get("name", "").strip()
-#         match = None
-#         for inferred_name in inferred_data.keys():
-#             if extracted_name == inferred_name.strip():
-#                 match = inferred_name
-#                 break
-#         mapping[field.get("name", "")] = match
-
-#     return mapping
 
 def get_prompt_template(extension: str) -> Tuple[str, str]:
     """
