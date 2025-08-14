@@ -19,7 +19,6 @@ from form_utils import extract_fields, fill_form, get_prompt_template, infer_dat
 st.set_page_config(page_title="AI Form Filler", layout="wide")
 st.title("AI Form Filler")
 
-# API Key input
 with st.expander("OpenAI API Key", expanded=True, icon=":material/vpn_key:"):
     if "openai_api_key" not in st.session_state:
         st.session_state.openai_api_key = ""
@@ -109,7 +108,6 @@ if st.session_state.show_form:
                     st.session_state.inference_done = False
 
                 st.session_state.show_inference = True
-
 
 if st.session_state.show_inference:
     with st.expander("Inferencia", expanded=True, icon=":material/model_training:"):
