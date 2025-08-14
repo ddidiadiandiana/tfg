@@ -29,8 +29,6 @@ with st.expander("OpenAI API Key", expanded=True, icon=":material/vpn_key:"):
         st.session_state.OPENAI_API_KEY = ""
     if "reset_api_key" not in st.session_state:
         st.session_state.reset_api_key = False
-    if "show_api_key_success" not in st.session_state:
-        st.session_state.show_api_key_success = True
 
     if "show_form" not in st.session_state:
         st.session_state.show_form = False
@@ -66,16 +64,9 @@ with st.expander("OpenAI API Key", expanded=True, icon=":material/vpn_key:"):
             st.session_state.prev_api_key = openai_api_key
 
             placeholder = st.empty()
-            if "message_time" not in st.session_state:
-                placeholder.success("API Key guardada correctamente.", icon=":material/check_circle:")
-                st.session_state["message_time"] = time.time()
-
-            while time.time() - st.session_state.get("message_time", 0) < 3:
-                pass
-
+            placeholder.success("API Key guardada correctamente.", icon=":material/check_circle:")
+            time.sleep(2)
             placeholder.empty()
-            del st.session_state["message_time"]
-            st.session_state.show_api_key_success = False
 
             st.session_state.show_form = True
 
@@ -96,8 +87,6 @@ if st.session_state.show_form:
 
             with tab2:
                 user_input = st.text_area("Describe tu información personal", height=250, placeholder="Ej: Mi nombre es...")
-                if not user_input.strip():
-                    st.warning("Introduce tu información personal.", icon=":material/warning:")
 
             _, col3 = st.columns([18.35, 1.00])  # "wide": [18.35, 1.00]; "centered": [6.89, 1.00]
             with col3:
@@ -197,9 +186,19 @@ if st.session_state.show_inference:
                 st.session_state.chat_messages.append({"role": "user", "content": user_prompt})
 
                 user_context = st.session_state.get("user_input", "")
+
+                inferred_context = ""
+                if "inferred_data" in st.session_state:
+                    inferred_context = "\n".join([f"{k}: {v}" for k, v in st.session_state.inferred_data.items()])
+
                 assistant_prompt = f"""
 You are provided with the following context regarding the document and the user:
+
+User description:
 {user_context}
+
+Inferred fields and values:
+{inferred_context}
 
 The user asks:
 {user_prompt}
