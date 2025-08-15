@@ -89,7 +89,7 @@ if st.session_state.show_form:
 
             _, col3 = st.columns([18.35, 1.00])  # "wide": [18.35, 1.00]; "centered": [6.89, 1.00]
             with col3:
-                user_form_submit_button = st.form_submit_button("Aceptar", type="primary")
+                user_form_submit_button = st.form_submit_button(label="Aceptar", help="Pulsa para enviar el formulario y tus datos.", type="primary")
 
         openai_api_key_changed = st.session_state.get("OPENAI_API_KEY") != openai_api_key
         user_file_changed = st.session_state.get("user_file") != user_file
@@ -243,7 +243,7 @@ Respond in a clearly, concisely, thoroughly, and accurately.
 
             _, col4 = st.columns([14.71, 1.00])  # "wide": [14.71, 1.00]; "centered": [5.35, 1.00]
             with col4:
-                complete_document_button = st.button(label="Completar", key="complete_document_button", help="Pulsa para completar el documento", type="primary")
+                complete_document_button = st.button(label="Completar", key="complete_document_button", help="Pulsa para completar el documento.", type="primary")
 
             if complete_document_button:
                 st.session_state.show_download = True
