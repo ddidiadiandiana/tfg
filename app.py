@@ -16,8 +16,8 @@ from streamlit_pdf_viewer import pdf_viewer
 
 from form_utils import extract_fields, fill_form, get_prompt_template, infer_data
 
-st.set_page_config(page_title="AI Form Filler", layout="wide")
-st.title("AI Form Filler")
+st.set_page_config(page_title="Let It Fill", layout="wide", page_icon=":material/stylus_note:")
+st.title("Let It Fill")
 
 with st.expander("OpenAI API Key", expanded=True, icon=":material/vpn_key:"):
     if "openai_api_key" not in st.session_state:
@@ -48,9 +48,9 @@ with st.expander("OpenAI API Key", expanded=True, icon=":material/vpn_key:"):
 
     _, col1, col2 = st.columns([16.00, 0.86, 1.00])  # "wide": [16.00, 0.86, 1.00]; "centered": [5.30, 0.85, 0.97]
     with col1:
-        delete_api_key_button = st.button(label="Borrar", key="delete_api_key_button", help="Pulsa \"Borrar\" para borrar la OpenAI API Key.", type="secondary")
+        delete_api_key_button = st.button(label="Borrar", key="delete_api_key_button", help="Pulsa para borrar la OpenAI API Key.", type="secondary")
     with col2:
-        save_api_key_button = st.button(label="Guardar", key="save_api_key_button", help="Pulsa \"Guardar\", o presiona Enter, para guardar la OpenAI API Key.", type="primary")
+        save_api_key_button = st.button(label="Guardar", key="save_api_key_button", help="Pulsa para guardar la OpenAI API Key.", type="primary")
 
     if save_api_key_button or (openai_api_key and openai_api_key != st.session_state.prev_api_key):
         if not openai_api_key.strip():
@@ -141,6 +141,9 @@ if st.session_state.show_inference:
 
             with st.spinner("Extrayendo campos del documento...", show_time=True):
                 fields = extract_fields(st.session_state.input_path, st.session_state.extension)
+
+            for i, field in enumerate(fields):
+                print(f"Campo {i+1}: {field['name']}\n")
 
             if not fields:
                 if st.session_state.extension == ".pdf":
@@ -240,7 +243,7 @@ Respond in a clearly, concisely, thoroughly, and accurately.
 
             _, col4 = st.columns([14.71, 1.00])  # "wide": [14.71, 1.00]; "centered": [5.35, 1.00]
             with col4:
-                complete_document_button = st.button(label="Completar", key="complete_document_button", help="Pulsa \"Completar\" para completar el documento con los datos de la tabla.", type="primary")
+                complete_document_button = st.button(label="Completar", key="complete_document_button", help="Pulsa para completar el documento", type="primary")
 
             if complete_document_button:
                 st.session_state.show_download = True
@@ -319,6 +322,6 @@ if st.session_state.show_download:
                 data=download_bytes,
                 file_name=st.session_state.final_filename,
                 mime=mime_type,
-                help="Pulsa \"Descargar\" para descargar el documento completado.",
+                help="Pulsa para descargar el documento completado.",
                 type="primary"
             )
