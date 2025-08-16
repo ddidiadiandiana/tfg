@@ -105,7 +105,7 @@ def extract_fields(file: str, extension: str) -> List[Dict[str, Any]]:
                 if word_count > 15:
                     continue
         
-                if ":" in frag or "-" in frag or word_count <= 6:
+                if ":" in frag or "-" in frag or word_count <= 15:
                     fields.append({
                         "name": frag,
                         "location": "paragraph",
@@ -118,7 +118,7 @@ def extract_fields(file: str, extension: str) -> List[Dict[str, Any]]:
             for row_i, row in enumerate(table.rows):
                 for column_i, cell in enumerate(row.cells):
                     field_name = cell.text.strip()
-                    if field_name and len(field_name.split()) <= 6:
+                    if field_name and len(field_name.split()) <= 15:
                         append_style = "inline"
                         if column_i + 1 < len(row.cells) and not row.cells[column_i + 1].text.strip():
                             append_style = "cell_right"
