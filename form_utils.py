@@ -4,6 +4,7 @@ from datetime import date
 from typing import Any, Dict, List, Tuple
 
 import streamlit as st
+from collections import defaultdict
 from docx import Document
 from pypdf import PdfReader, PdfWriter
 from pypdf.generic import NameObject, TextStringObject, BooleanObject, DictionaryObject
@@ -102,10 +103,7 @@ def extract_fields(file: str, extension: str) -> List[Dict[str, Any]]:
                     frag = frag.split(":")[0].strip() + ":"
         
                 word_count = len(frag.split())
-                if word_count > 15:
-                    continue
-        
-                if ":" in frag or "-" in frag or word_count <= 15:
+                if ":" in frag or "-" in frag or word_count <= 10:
                     fields.append({
                         "name": frag,
                         "location": "paragraph",
@@ -118,12 +116,13 @@ def extract_fields(file: str, extension: str) -> List[Dict[str, Any]]:
             for row_i, row in enumerate(table.rows):
                 for column_i, cell in enumerate(row.cells):
                     field_name = cell.text.strip()
-                    if field_name and len(field_name.split()) <= 15:
-                        append_style = "inline"
+                    if field_name and (":" in field_name or "-" in field_name or len(field_name.split()) <= 10):
                         if column_i + 1 < len(row.cells) and not row.cells[column_i + 1].text.strip():
                             append_style = "cell_right"
                         elif row_i + 1 < len(table.rows) and not table.rows[row_i + 1].cells[column_i].text.strip():
                             append_style = "cell_below"
+                        else:
+                            append_style = "inline"
     
                         fields.append({
                             "name": field_name,
@@ -133,6 +132,26 @@ def extract_fields(file: str, extension: str) -> List[Dict[str, Any]]:
                             "column": column_i,
                             "append_style": append_style
                         })
+
+        grouped = defaultdict(list)
+        for f in fields:
+            if f["location"] == "table":
+                grouped[f["name"]].append(f)
+
+        cleaned_fields = []
+        for f in fields:
+            if f["location"] != "table":
+                cleaned_fields.append(f)
+                continue
+
+            items = grouped[f["name"]]
+            if len(items) > 1:
+                non_inline = [x for x in items if x["append_style"] != "inline"]  # cell_right or cell_below
+                if f["append_style"] == "inline" and non_inline:
+                    continue
+            cleaned_fields.append(f)
+
+        fields = cleaned_fields
         
     elif extension == ".pdf":
         reader = PdfReader(file)
@@ -206,6 +225,10 @@ def infer_data(fields: List[Dict[str, Any]], user_input: str, chain: LLMChain) -
     }
 
     response = chain.invoke(prompt_vars).content.strip()
+
+    tokens = ["na", "n/a", "none", "null"]
+    pattern = r'\b(?:' + '|'.join(map(re.escape, tokens)) + r')\b'
+    response = re.sub(pattern, '', response, flags=re.IGNORECASE)
 
     try:
         return json.loads(response)
