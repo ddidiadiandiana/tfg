@@ -34,8 +34,6 @@ with st.expander("OpenAI API Key", expanded=True, icon=":material/vpn_key:"):
 
     if "show_inference" not in st.session_state:
         st.session_state.show_inference = False
-    if "openai_model" not in st.session_state:
-        st.session_state["openai_model"] = "gpt-4o-mini"
 
     if "show_download" not in st.session_state:
         st.session_state.show_download = False
@@ -79,13 +77,21 @@ with st.expander("OpenAI API Key", expanded=True, icon=":material/vpn_key:"):
 if st.session_state.show_form:
     with st.expander("Entrada de información", expanded=True, icon=":material/docs:"):
         with st.form("user_form", border=False):
-            tab1, tab2 = st.tabs(["Documento", "Datos personales"])
+            tab1, tab2, tab3 = st.tabs(["Documento", "Datos personales", "Modelo"])
 
             with tab1:
                 user_file = st.file_uploader("Sube un documento a rellenar", type=["pdf", "docx"])
 
             with tab2:
                 user_input = st.text_area("Describe tu información personal", height=250, placeholder="Ej: Mi nombre es...")
+
+            with tab3:
+                model_options = ["gpt-3.5-turbo", "gpt-4o-mini", "gpt-4.1"]
+                st.session_state["openai_model"] = st.radio(
+                    "Selecciona el modelo a usar para la inferencia",
+                    options=model_options,
+                    index=model_options.index("gpt-4o-mini")
+                )
 
             _, col3 = st.columns([18.35, 1.00])  # "wide": [18.35, 1.00]; "centered": [6.89, 1.00]
             with col3:
@@ -141,9 +147,6 @@ if st.session_state.show_inference:
 
             with st.spinner("Extrayendo campos del documento...", show_time=True):
                 fields = extract_fields(st.session_state.input_path, st.session_state.extension)
-
-            for i, field in enumerate(fields):
-                print(f"Campo {i+1}: {field['name']}\n")
 
             if not fields:
                 if st.session_state.extension == ".pdf":
