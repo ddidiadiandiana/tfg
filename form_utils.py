@@ -1,34 +1,15 @@
 import json
+import re
 from datetime import date
-from typing import Any, Dict, List, Tuple, Optional
+from typing import Any, Dict, List, Tuple
 
 import streamlit as st
+from collections import defaultdict
 from docx import Document
 from pypdf import PdfReader, PdfWriter
-from pypdf.generic import NameObject, TextStringObject
+from pypdf.generic import NameObject, TextStringObject, BooleanObject, DictionaryObject
 
 from langchain.chains import LLMChain
-
-def build_mapping(extracted_fields: List[Dict[str, str]], inferred_data: Dict[str, str]) -> Dict[str, Optional[str]]:
-    """
-    Map extracted field names to inferred field names based on stripped equality.
-
-    :param extracted_fields: List of dicts with 'name' keys for extracted fields.
-    :param inferred_data: Dict of inferred field names to values.
-    :return: Dictionary mapping extracted field names to inferred field names, or None if no match.
-    """
-    mapping: Dict[str, Optional[str]] = {}
-
-    for field in extracted_fields:
-        extracted_name = field.get("name", "").strip()
-        match = None
-        for inferred_name in inferred_data.keys():
-            if extracted_name == inferred_name.strip():
-                match = inferred_name
-                break
-        mapping[field.get("name", "")] = match
-
-    return mapping
 
 def get_prompt_template(extension: str) -> Tuple[str, str]:
     """
@@ -103,25 +84,45 @@ def extract_fields(file: str, extension: str) -> List[Dict[str, Any]]:
         # Paragraph fields
         for paragraph_i, paragraph in enumerate(doc.paragraphs):
             text = paragraph.text.strip()
-            if text and (":" in text or "-" in text or len(text.split()) <= 6):
-                fields.append({
-                    "name": text,
-                    "location": "paragraph",
-                    "paragraph": paragraph_i,
-                    "append_style": "inline"
-                })
+            if not text:
+                continue
+        
+            if "___" in text:
+                fragments = re.split(r"_{3,}", text)
+            else:
+                fragments = [text]
+        
+            for frag in fragments:
+                frag = frag.strip()
+                if not frag:
+                    continue
+                    
+                if "\n" in frag:
+                    frag = frag.split("\n")[-1].strip()
+                if ":" in frag and len(frag.split(":")) > 1:
+                    frag = frag.split(":")[0].strip() + ":"
+        
+                word_count = len(frag.split())
+                if ":" in frag or "-" in frag or word_count <= 10:
+                    fields.append({
+                        "name": frag,
+                        "location": "paragraph",
+                        "paragraph": paragraph_i,
+                        "append_style": "inline"
+                    })
     
         # Table fields
         for table_i, table in enumerate(doc.tables):
             for row_i, row in enumerate(table.rows):
                 for column_i, cell in enumerate(row.cells):
                     field_name = cell.text.strip()
-                    if field_name and len(field_name.split()) <= 6:
-                        append_style = "inline"
+                    if field_name and (":" in field_name or "-" in field_name or len(field_name.split()) <= 10):
                         if column_i + 1 < len(row.cells) and not row.cells[column_i + 1].text.strip():
                             append_style = "cell_right"
                         elif row_i + 1 < len(table.rows) and not table.rows[row_i + 1].cells[column_i].text.strip():
                             append_style = "cell_below"
+                        else:
+                            append_style = "inline"
     
                         fields.append({
                             "name": field_name,
@@ -131,6 +132,26 @@ def extract_fields(file: str, extension: str) -> List[Dict[str, Any]]:
                             "column": column_i,
                             "append_style": append_style
                         })
+
+        grouped = defaultdict(list)
+        for f in fields:
+            if f["location"] == "table":
+                grouped[f["name"]].append(f)
+
+        cleaned_fields = []
+        for f in fields:
+            if f["location"] != "table":
+                cleaned_fields.append(f)
+                continue
+
+            items = grouped[f["name"]]
+            if len(items) > 1:
+                non_inline = [x for x in items if x["append_style"] != "inline"]  # cell_right or cell_below
+                if f["append_style"] == "inline" and non_inline:
+                    continue
+            cleaned_fields.append(f)
+
+        fields = cleaned_fields
         
     elif extension == ".pdf":
         reader = PdfReader(file)
@@ -193,7 +214,6 @@ def infer_data(fields: List[Dict[str, Any]], user_input: str, chain: LLMChain) -
     :param fields: List of dictionaries containing field names and their properties.
     :param user_input: Text input providing relevant personal information from the user.
     :param chain: LangChain LLMChain used to invoke the language model.
-    :param extension: File extension indicating document type.
     :return: Dictionary mapping field names to inferred values.
     """
     fields = [field["name"] for field in fields]
@@ -206,6 +226,10 @@ def infer_data(fields: List[Dict[str, Any]], user_input: str, chain: LLMChain) -
 
     response = chain.invoke(prompt_vars).content.strip()
 
+    tokens = ["na", "n/a", "none", "null"]
+    pattern = r'\b(?:' + '|'.join(map(re.escape, tokens)) + r')\b'
+    response = re.sub(pattern, '', response, flags=re.IGNORECASE)
+
     try:
         return json.loads(response)
     except json.JSONDecodeError:
@@ -216,7 +240,7 @@ def infer_data(fields: List[Dict[str, Any]], user_input: str, chain: LLMChain) -
             st.error("No se ha podido interpretar la respuesta del modelo como un JSON válido. El proceso se ha detenido.", icon=":material/error:")
             st.stop()
 
-def fill_form(inputf: str, outputf: str, data: Dict[str, str], fields: List[Dict[str, Any]], extension: str, mapping: Dict[str, str] = None) -> None:
+def fill_form(inputf: str, outputf: str, data: Dict[str, str], fields: List[Dict[str, Any]], extension: str) -> None:
     """
     Fills document form fields with provided data.
     
@@ -232,12 +256,11 @@ def fill_form(inputf: str, outputf: str, data: Dict[str, str], fields: List[Dict
 
         for field in fields:
             extracted_key = field["name"]
-            inferred_key = mapping.get(extracted_key) if mapping else extracted_key
 
-            if not inferred_key:
+            if extracted_key not in data:
                 continue
 
-            value = data.get(inferred_key, "")
+            value = data.get(extracted_key, "")
             if not value:
                 continue
 
@@ -245,7 +268,11 @@ def fill_form(inputf: str, outputf: str, data: Dict[str, str], fields: List[Dict
             if field["location"] == "paragraph":
                 paragraph = doc.paragraphs[field["paragraph"]]
                 if extracted_key in paragraph.text:
-                    paragraph.text = paragraph.text.replace(extracted_key, f"{extracted_key} {value}")
+                    if "___" in paragraph.text:  # tiene guiones bajos después
+                        pattern = re.escape(extracted_key) + r"[ _]*_{3,}"
+                        paragraph.text = re.sub(pattern, f"{extracted_key} {value} ", paragraph.text)
+                    else:
+                        paragraph.text = paragraph.text.replace(extracted_key, f"{extracted_key} {value}")
     
             # Fill tables
             elif field["location"] == "table":
@@ -281,8 +308,20 @@ def fill_form(inputf: str, outputf: str, data: Dict[str, str], fields: List[Dict
                     if value:
                         obj.update({NameObject("/V"): TextStringObject(str(value))})
     
+        # if "/AcroForm" in reader.trailer["/Root"]:
+        #     acro_form = reader.trailer["/Root"]["/AcroForm"]
+        #     acro_form.update({NameObject("/NeedAppearances"): BooleanObject(True)})
+        # else:
+        #     reader.trailer["/Root"][NameObject("/AcroForm")] = DictionaryObject({
+        #         NameObject("/NeedAppearances"): BooleanObject(True)
+        #     })
+        
         writer = PdfWriter()
         for page in reader.pages:
             writer.add_page(page)
+
+        # writer._root_object.update({
+        #     NameObject("/AcroForm"): reader.trailer["/Root"]["/AcroForm"]
+        # })
     
         writer.write(outputf)
