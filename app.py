@@ -296,7 +296,7 @@ if st.session_state.show_download:
                         preview_bytes = f.read()
 
                 except Exception as e:
-                    st.error(f"An error occurred while converting DOCX to PDF with LibreOffice: {e}")
+                    st.error(f"No ha sido posible generar la vista previa del documento. Pulse \"Descargar\" para acceder al archivo completado.")
                     preview_bytes = None
         elif st.session_state.extension == ".pdf":
             preview_bytes = download_bytes
